@@ -3,6 +3,9 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.BufferedReader;
 
 public class Main {
   public static void main(String[] args) {
@@ -14,9 +17,18 @@ public class Main {
       serverSocket = new ServerSocket(4221);
       serverSocket.setReuseAddress(true);
       clientSocket = serverSocket.accept(); // Wait for connection from client.
-      String httpResponse = "HTTP/1.1 200 OK\r\n\r\n";
+      String httpOKResponse = "HTTP/1.1 200 OK\r\n\r\n";
+      String http404Response = "HTTP/1.1 404 Not Found\r\n\r\n";
       OutputStream clientOutput = clientSocket.getOutputStream();
-      clientOutput.write(httpResponse.getBytes(StandardCharsets.UTF_8));
+
+      BufferedReader bufferReader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+      if(bufferReader.readLine().contain("/")){
+        clientOutput.write(httpOKResponse.getBytes(StandardCharsets.UTF_8));
+      }
+      else{
+        clientOutput.write(http404Response.getBytes(StandardCharsets.UTF_8));
+      }
+
       clientOutput.flush();
       clientOutput.close();
     } catch (IOException e) {
