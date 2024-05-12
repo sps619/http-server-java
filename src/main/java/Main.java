@@ -22,7 +22,7 @@ public class Main {
       OutputStream clientOutput = clientSocket.getOutputStream();
 
       BufferedReader bufferReader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-      if(bufferReader.readLine().split(" ")[1].contains("/")){
+      if(bufferReader.readLine().split(" ")[1].equals("/")){
         clientOutput.write(httpOKResponse.getBytes(StandardCharsets.UTF_8));
       }
       else{
