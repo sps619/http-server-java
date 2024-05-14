@@ -8,40 +8,52 @@ import java.io.InputStreamReader;
 import java.io.BufferedReader;
 
 public class Main {
+
+  static String crlf = "\r\n";
+
   public static void main(String[] args) {
     
     ServerSocket serverSocket = null;
     Socket clientSocket = null;
-    
+
     try {
       serverSocket = new ServerSocket(4221);
       serverSocket.setReuseAddress(true);
       clientSocket = serverSocket.accept(); // Wait for connection from client.
       String httpOKResponse = "HTTP/1.1 200 OK";
       String http404Response = "HTTP/1.1 404 Not Found";
-      String crlf = "\r\n";
       String contentType = "Content-Type: text/plain";
-      String contentLength = "Content-Length: ";
+      String content = "Content-Length: ";
       OutputStream clientOutput = clientSocket.getOutputStream();
 
       BufferedReader bufferReader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+      String UserAgent = null;
       String input = bufferReader.readLine();
+      while(true){
+        String line = bufferReader.readLine();
+        if(line.isEmpty() || line == null)
+          break;
+        if(line.contains("User-Agent:"))
+          UserAgent = line;
+      }
       if(input.split(" ")[1].equals("/")){
-        clientOutput.write(httpOKResponse.getBytes());
-        clientOutput.write(crlf.getBytes());
-        clientOutput.write(crlf.getBytes());
+        String rootOkResponse = httpOKResponse+crlf+crlf;
+        clientOutput.write(rootOkResponse.getBytes());
+        setResponse(clientOutput,httpOKResponse,null,null,null);
       }
 
       else if(input.contains("/echo/")){
-        clientOutput.write(httpOKResponse.getBytes());
-        clientOutput.write(crlf.getBytes());
-        clientOutput.write(contentType.getBytes());
-        clientOutput.write(crlf.getBytes());
-        clientOutput.write(contentLength.getBytes());
-        clientOutput.write(String.valueOf(input.split(" ")[1].split("/echo/")[1].length()).getBytes());
-        clientOutput.write(crlf.getBytes());
-        clientOutput.write(crlf.getBytes());
-        clientOutput.write(input.split(" ")[1].split("/echo/")[1].getBytes());
+        String length = String.valueOf(input.split(" ")[1].split("/echo/")[1].length());
+        String contentLength = content+length;
+        String response = input.split(" ")[1].split("/echo/")[1];
+        setResponse(clientOutput,httpOKResponse,contentType,contentLength,response);
+      }
+      else if(input.contains("/user-agent")){
+        String response = UserAgent.split(" ")[1];
+        String contentLength = content+response.length();
+        System.out.println("UserAgent: "+UserAgent+" response: "+response+" input: "+input);
+        //String contentLength = null;//content+String.valueOf(agent.length());
+        setResponse(clientOutput,httpOKResponse,contentType,contentLength,response);
       }
       else{
         clientOutput.write(http404Response.getBytes());
@@ -53,5 +65,10 @@ public class Main {
     } catch (IOException e) {
       System.out.println("IOException: " + e.getMessage());
     }
+  }
+
+  private static void setResponse(OutputStream clientOutput, String httpStatus, String contentType, String contentLength, String response) throws IOException{
+    String output = httpStatus+crlf+(contentType==null?"":(contentType+crlf))+(contentLength==null?"":(contentLength+crlf))+crlf+(response==null?"":response);
+    clientOutput.write(output.getBytes());
   }
 }
