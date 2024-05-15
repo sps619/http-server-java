@@ -6,20 +6,30 @@ import java.nio.charset.StandardCharsets;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.BufferedReader;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class Main {
 
   static String crlf = "\r\n";
 
   public static void main(String[] args) {
-    
-    ServerSocket serverSocket = null;
-    Socket clientSocket = null;
-
-    try {
-      serverSocket = new ServerSocket(4221);
+    ExecutorService threadPool = Executors.newFixedThreadPool(6);
+    try{
+      ServerSocket serverSocket = new ServerSocket(4221);
       serverSocket.setReuseAddress(true);
-      clientSocket = serverSocket.accept(); // Wait for connection from client.
+      while(true) {
+        Socket clientSocket = serverSocket.accept(); // Wait for connection from client.
+        threadPool.submit(()->sendResponse(clientSocket));
+      }
+    }
+    catch (IOException e) {
+      System.out.println("IOException: " + e.getMessage());
+    }
+  }
+
+  private static void sendResponse(Socket clientSocket){
+    try {
       String httpOKResponse = "HTTP/1.1 200 OK";
       String http404Response = "HTTP/1.1 404 Not Found";
       String contentType = "Content-Type: text/plain";
@@ -52,7 +62,6 @@ public class Main {
         String response = UserAgent.split(" ")[1];
         String contentLength = content+response.length();
         System.out.println("UserAgent: "+UserAgent+" response: "+response+" input: "+input);
-        //String contentLength = null;//content+String.valueOf(agent.length());
         setResponse(clientOutput,httpOKResponse,contentType,contentLength,response);
       }
       else{
@@ -62,8 +71,17 @@ public class Main {
       }
       clientOutput.flush();
       clientOutput.close();
-    } catch (IOException e) {
+    }
+    catch (IOException e) {
       System.out.println("IOException: " + e.getMessage());
+    }
+    finally{
+      try{
+        clientSocket.close();
+      }
+      catch (IOException e) {
+      System.out.println("IOException: " + e.getMessage());
+    }
     }
   }
 
