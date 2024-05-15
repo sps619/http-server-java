@@ -8,6 +8,8 @@ import java.io.InputStreamReader;
 import java.io.BufferedReader;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.io.File;
+import java.io.FileInputStream;
 
 public class Main {
 
@@ -20,7 +22,7 @@ public class Main {
       serverSocket.setReuseAddress(true);
       while(true) {
         Socket clientSocket = serverSocket.accept(); // Wait for connection from client.
-        threadPool.submit(()->sendResponse(clientSocket));
+        threadPool.submit(()->sendResponse(clientSocket,args));
       }
     }
     catch (IOException e) {
@@ -28,7 +30,7 @@ public class Main {
     }
   }
 
-  private static void sendResponse(Socket clientSocket){
+  private static void sendResponse(Socket clientSocket, String[] args){
     try {
       String httpOKResponse = "HTTP/1.1 200 OK";
       String http404Response = "HTTP/1.1 404 Not Found";
@@ -44,7 +46,7 @@ public class Main {
         if(line.isEmpty() || line == null)
           break;
         if(line.contains("User-Agent:"))
-          UserAgent = line;
+          UserAgent = line;   
       }
       if(input.split(" ")[1].equals("/")){
         String rootOkResponse = httpOKResponse+crlf+crlf;
@@ -61,13 +63,32 @@ public class Main {
       else if(input.contains("/user-agent")){
         String response = UserAgent.split(" ")[1];
         String contentLength = content+response.length();
-        System.out.println("UserAgent: "+UserAgent+" response: "+response+" input: "+input);
         setResponse(clientOutput,httpOKResponse,contentType,contentLength,response);
       }
+      else if(input.contains("/files/")){
+        String fileName = input.split(" ")[1].split("/")[2];
+        String directory = null;
+        if(args.length>1 && args[0].equals("--directory") && args[1]!=null){
+          directory = args[1].endsWith("/")?args[1]:args[1]+"/";
+        }
+        String filePath = directory+fileName;
+        File file = new File(filePath);
+        if(file.exists()){         
+          int fileSize = (int) file.length();
+          byte[] fileContent = new byte[fileSize];
+          FileInputStream fileInput = new FileInputStream(file);
+          fileInput.read(fileContent);
+          contentType = "Content-Type: application/octet-stream";
+          String contentLength = content+fileSize;
+          setFileResponse(clientOutput,httpOKResponse,contentType,contentLength,null,fileContent);
+          fileInput.close();
+        }
+        else{
+          set404Response(clientOutput,http404Response);
+        }
+      }
       else{
-        clientOutput.write(http404Response.getBytes());
-        clientOutput.write(crlf.getBytes());
-        clientOutput.write(crlf.getBytes());
+        set404Response(clientOutput,http404Response);
       }
       clientOutput.flush();
       clientOutput.close();
@@ -81,7 +102,7 @@ public class Main {
       }
       catch (IOException e) {
       System.out.println("IOException: " + e.getMessage());
-    }
+      }
     }
   }
 
@@ -89,4 +110,21 @@ public class Main {
     String output = httpStatus+crlf+(contentType==null?"":(contentType+crlf))+(contentLength==null?"":(contentLength+crlf))+crlf+(response==null?"":response);
     clientOutput.write(output.getBytes());
   }
+
+  private static void setFileResponse(OutputStream clientOutput, String httpStatus, String contentType, String contentLength, String response, byte[] fileContent) throws IOException{
+    String output = httpStatus+crlf+(contentType==null?"":(contentType+crlf))+(contentLength==null?"":(contentLength+crlf))+crlf+(response==null?"":response);
+    clientOutput.write(output.getBytes());
+    clientOutput.write(fileContent);
+  }
+  
+  private static void set404Response(OutputStream clientOutput, String httpStatus){
+    String output = httpStatus+crlf+crlf;
+    try{
+      clientOutput.write(output.getBytes());
+    }
+    catch (IOException e) {
+      System.out.println("IOException: " + e.getMessage());
+    }
+  }
+    
 }
