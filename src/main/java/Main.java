@@ -63,8 +63,11 @@ public class Main {
           System.out.println("Content Length: "+contentLengthPOST);
         }
         if(line.contains("Accept-Encoding:")){
-          encodingVal = line.split(" ")[1];
-          System.out.println("encodingVal: "+encodingVal);
+          for(String str : line.split("Accept-Encoding: ")[1].split(",") ){
+            if(str.trim().toLowerCase().equals("gzip"))
+              encodingVal = "gzip";            
+          } 
+
         }
       }
       if(input.split(" ")[1].equals("/")){
