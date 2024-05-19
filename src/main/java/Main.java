@@ -1,19 +1,12 @@
-import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.BufferedReader;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.FileWriter;
+import java.io.*;
 import java.nio.file.Path;
 import java.nio.file.Files;
+import java.util.zip.GZIPOutputStream;
 
 public class Main {
 
@@ -45,7 +38,6 @@ public class Main {
       String contentEncoding = "Content-Encoding: ";
       String encodingVal = null;
       OutputStream clientOutput = clientSocket.getOutputStream();
-
       BufferedReader bufferReader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
       String UserAgent = null;
       String data=null;
@@ -60,7 +52,6 @@ public class Main {
           UserAgent = line;  
         if(line.contains(content)){
           contentLengthPOST = Integer.parseInt(line.split(" ")[1]);
-          System.out.println("Content Length: "+contentLengthPOST);
         }
         if(line.contains("Accept-Encoding:")){
           for(String str : line.split("Accept-Encoding: ")[1].split(",") ){
@@ -77,21 +68,18 @@ public class Main {
       }
 
       else if(input.contains("/echo/")){
-        System.out.println("inside echo");
         String length = String.valueOf(input.split(" ")[1].split("/echo/")[1].length());
         String contentLength = content+length;
         String response = input.split(" ")[1].split("/echo/")[1];
-        System.out.println("inside echo condition: encodingVal: "+encodingVal+" contentLength: "+contentLength+" response: "+response);
+        ByteArrayOutputStream arrayOutputStream = new ByteArrayOutputStream();
+        GZIPOutputStream gzip = new GZIPOutputStream(arrayOutputStream);
         if( encodingVal==null || encodingVal.contains("invalid-encoding")){
-          System.out.println("inside equals invalid");
           encodingVal=null;
         }
         else{
-          System.out.println("inside else echo");
           encodingVal=contentEncoding+encodingVal;
         }
-        System.out.println("inside encoding condition: "+encodingVal);
-        setCompResponse(clientOutput,httpOKResponse,contentType,contentLength,response,encodingVal);
+        setCompResponse(clientOutput,httpOKResponse,contentType,contentLength,response,encodingVal,gzip,arrayOutputStream);
 
       }
       else if(input.contains("/user-agent")){
@@ -156,9 +144,22 @@ public class Main {
     String output = httpStatus+crlf+(contentType==null?"":(contentType+crlf))+(contentLength==null?"":(contentLength+crlf))+crlf+(response==null?"":response);
     clientOutput.write(output.getBytes());
   }
-  private static void setCompResponse(OutputStream clientOutput, String httpStatus, String contentType, String contentLength, String response, String encoding) throws IOException{
-    String output = httpStatus+crlf+(encoding==null?"":encoding+crlf)+(contentType==null?"":(contentType+crlf))+(contentLength==null?"":(contentLength+crlf))+crlf+(response==null?"":response);
-    clientOutput.write(output.getBytes());
+  private static void setCompResponse(OutputStream clientOutput, String httpStatus, String contentType, String contentLength, String response, String encoding, GZIPOutputStream gzip, ByteArrayOutputStream arrayOutputStream) throws IOException{
+    if(encoding!=null){  
+      if(encoding.contains("gzip")){
+        gzip.write(response.getBytes());
+        gzip.close();
+        byte[] compressedResponse = arrayOutputStream.toByteArray();     
+        contentLength = "Content-Length: "+String.valueOf(compressedResponse.length);
+        String output = httpStatus+crlf+(encoding==null?"":encoding+crlf)+(contentType==null?"":(contentType+crlf))+(contentLength==null?"":(contentLength+crlf))+crlf;
+        clientOutput.write(output.getBytes()); 
+        clientOutput.write(compressedResponse);
+      }
+    } 
+      else{
+        String output = httpStatus+crlf+(encoding==null?"":encoding+crlf)+(contentType==null?"":(contentType+crlf))+(contentLength==null?"":(contentLength+crlf))+crlf+(response==null?"":response);
+        clientOutput.write(output.getBytes());
+      }
   }
 
   private static void setFileResponse(OutputStream clientOutput, String httpStatus, String contentType, String contentLength, String response, byte[] fileContent) throws IOException{
