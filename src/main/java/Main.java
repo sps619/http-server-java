@@ -42,6 +42,8 @@ public class Main {
       String http201Response = "HTTP/1.1 201 Created";
       String contentType = "Content-Type: text/plain";
       String content = "Content-Length: ";
+      String contentEncoding = "Content-Encoding: ";
+      String encodingVal = null;
       OutputStream clientOutput = clientSocket.getOutputStream();
 
       BufferedReader bufferReader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
@@ -60,6 +62,10 @@ public class Main {
           contentLengthPOST = Integer.parseInt(line.split(" ")[1]);
           System.out.println("Content Length: "+contentLengthPOST);
         }
+        if(line.contains("Accept-Encoding:")){
+          encodingVal = line.split(" ")[1];
+          System.out.println("encodingVal: "+encodingVal);
+        }
       }
       if(input.split(" ")[1].equals("/")){
         String rootOkResponse = httpOKResponse+crlf+crlf;
@@ -68,10 +74,22 @@ public class Main {
       }
 
       else if(input.contains("/echo/")){
+        System.out.println("inside echo");
         String length = String.valueOf(input.split(" ")[1].split("/echo/")[1].length());
         String contentLength = content+length;
         String response = input.split(" ")[1].split("/echo/")[1];
-        setResponse(clientOutput,httpOKResponse,contentType,contentLength,response);
+        System.out.println("inside echo condition: encodingVal: "+encodingVal+" contentLength: "+contentLength+" response: "+response);
+        if( encodingVal==null || encodingVal.contains("invalid-encoding")){
+          System.out.println("inside equals invalid");
+          encodingVal=null;
+        }
+        else{
+          System.out.println("inside else echo");
+          encodingVal=contentEncoding+encodingVal;
+        }
+        System.out.println("inside encoding condition: "+encodingVal);
+        setCompResponse(clientOutput,httpOKResponse,contentType,contentLength,response,encodingVal);
+
       }
       else if(input.contains("/user-agent")){
         String response = UserAgent.split(" ")[1];
@@ -133,6 +151,10 @@ public class Main {
 
   private static void setResponse(OutputStream clientOutput, String httpStatus, String contentType, String contentLength, String response) throws IOException{
     String output = httpStatus+crlf+(contentType==null?"":(contentType+crlf))+(contentLength==null?"":(contentLength+crlf))+crlf+(response==null?"":response);
+    clientOutput.write(output.getBytes());
+  }
+  private static void setCompResponse(OutputStream clientOutput, String httpStatus, String contentType, String contentLength, String response, String encoding) throws IOException{
+    String output = httpStatus+crlf+(encoding==null?"":encoding+crlf)+(contentType==null?"":(contentType+crlf))+(contentLength==null?"":(contentLength+crlf))+crlf+(response==null?"":response);
     clientOutput.write(output.getBytes());
   }
 
