@@ -10,6 +10,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.nio.file.Path;
+import java.nio.file.Files;
 
 public class Main {
 
@@ -22,6 +26,7 @@ public class Main {
       serverSocket.setReuseAddress(true);
       while(true) {
         Socket clientSocket = serverSocket.accept(); // Wait for connection from client.
+        System.out.println("Connection Accepted!!");
         threadPool.submit(()->sendResponse(clientSocket,args));
       }
     }
@@ -34,19 +39,27 @@ public class Main {
     try {
       String httpOKResponse = "HTTP/1.1 200 OK";
       String http404Response = "HTTP/1.1 404 Not Found";
+      String http201Response = "HTTP/1.1 201 Created";
       String contentType = "Content-Type: text/plain";
       String content = "Content-Length: ";
       OutputStream clientOutput = clientSocket.getOutputStream();
 
       BufferedReader bufferReader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
       String UserAgent = null;
+      String data=null;
+      int contentLengthPOST=0;
       String input = bufferReader.readLine();
       while(true){
         String line = bufferReader.readLine();
-        if(line.isEmpty() || line == null)
-          break;
+        if(line.isEmpty() || line == null){
+            break;
+          }
         if(line.contains("User-Agent:"))
-          UserAgent = line;   
+          UserAgent = line;  
+        if(line.contains(content)){
+          contentLengthPOST = Integer.parseInt(line.split(" ")[1]);
+          System.out.println("Content Length: "+contentLengthPOST);
+        }
       }
       if(input.split(" ")[1].equals("/")){
         String rootOkResponse = httpOKResponse+crlf+crlf;
@@ -72,26 +85,38 @@ public class Main {
           directory = args[1].endsWith("/")?args[1]:args[1]+"/";
         }
         String filePath = directory+fileName;
-        File file = new File(filePath);
-        if(file.exists()){         
-          int fileSize = (int) file.length();
-          byte[] fileContent = new byte[fileSize];
-          FileInputStream fileInput = new FileInputStream(file);
-          fileInput.read(fileContent);
-          contentType = "Content-Type: application/octet-stream";
-          String contentLength = content+fileSize;
-          setFileResponse(clientOutput,httpOKResponse,contentType,contentLength,null,fileContent);
-          fileInput.close();
+        if(input.contains("GET")){
+          File file = new File(filePath);
+          if(file.exists()){         
+            int fileSize = (int) file.length();
+            byte[] fileContent = new byte[fileSize];
+            FileInputStream fileInput = new FileInputStream(file);
+            fileInput.read(fileContent);
+            contentType = "Content-Type: application/octet-stream";
+            String contentLength = content+fileSize;
+            setFileResponse(clientOutput,httpOKResponse,contentType,contentLength,null,fileContent);
+            fileInput.close();
+          }
+          else{
+            set404Response(clientOutput,http404Response);
+          }
         }
-        else{
-          set404Response(clientOutput,http404Response);
+        else if(input.contains("POST")){
+            char[] charBuff = new char[contentLengthPOST];
+            bufferReader.read(charBuff);
+            String body = new String(charBuff);
+            Path file = Path.of(filePath);
+            Files.writeString(file, body);
+            setResponse(clientOutput,http201Response, null, null, null);
         }
+        
       }
       else{
         set404Response(clientOutput,http404Response);
       }
       clientOutput.flush();
       clientOutput.close();
+      System.out.println("Connection Closed!!");
     }
     catch (IOException e) {
       System.out.println("IOException: " + e.getMessage());
@@ -126,5 +151,6 @@ public class Main {
       System.out.println("IOException: " + e.getMessage());
     }
   }
-    
+
 }
+    
